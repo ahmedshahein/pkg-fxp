@@ -124,7 +124,6 @@ classdef fxp
       if (obj.S == 0) && (any(data(:) < 0))
         disp('WRN: Negative value is assigned to unsigned fixed-point data-type.');
         disp('     The overflow action will be applied.');
-        #return
       end
 
       % Common obj values for single or array input
