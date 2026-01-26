@@ -1,0 +1,11 @@
+# Package function index (see Octave manual: The INDEX File)
+toolbox >> fxp
+Fixed-point data type
+ fxp
+Display and inspection
+ disp
+Arithmetic operators (methods)
+ plus minus uminus times mtimes rdivide ldivide power
+Comparison operators (methods)
+ eq ne lt le gt ge
+

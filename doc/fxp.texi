@@ -1,0 +1,87 @@
+\
+\input texinfo
+@setfilename fxp.info
+@settitle fxp: Fixed-point data type for GNU Octave
+
+@dircategory Octave
+@direntry
+* fxp: (fxp).  Fixed-point (fxp) data type for GNU Octave.
+@end direntry
+
+@titlepage
+@title fxp
+@subtitle Fixed-point (fxp) data type for GNU Octave
+@author Ahmed Shahein
+@end titlepage
+
+@node Top
+@top fxp
+
+This package provides the @code{fxp} class, a fixed-point numeric type for
+modeling quantization and overflow behavior in GNU Octave.
+
+@menu
+* Overview::
+* Using the fxp class::
+* Examples::
+@end menu
+
+@node Overview
+@chapter Overview
+
+@code{fxp} is intended for algorithm development and verification where fixed-point
+effects matter (e.g., DSP, embedded, and hardware-oriented flows).  It provides:
+
+@itemize
+@item Quantization to a specified word length and fractional length.
+@item Overflow behavior (e.g., saturation and/or wrap-around depending on configuration).
+@item Operator overloads for common arithmetic and comparisons.
+@item Utility methods for display and introspection.
+@end itemize
+
+@node Using the fxp class
+@chapter Using the fxp class
+
+The constructor follows the general pattern:
+
+@deftypefn {Function} {} fxp (@var{data}, @var{signed}, @var{WL}, @var{FL})
+Create a fixed-point object from @var{data}.
+
+@table @asis
+@item @var{data}
+Scalar or array of numeric values.
+@item @var{signed}
+Signedness flag (implementation-defined; commonly @code{1} for signed, @code{0} for unsigned).
+@item @var{WL}
+Word length in bits.
+@item @var{FL}
+Fractional length in bits.
+@end table
+@end deftypefn
+
+Once created, standard operators can be used, e.g., @code{+}, @code{-}, @code{.*},
+@code{*}, @code{./}, relational operators, and any methods implemented in the class.
+
+@node Examples
+@chapter Examples
+
+@section Basic arithmetic
+
+@example
+pkg load fxp
+x = fxp([0:0.1:8], 0, 10, 7);
+y = fxp([0:0.2:16], 0, 12, 8);
+z = x + y;
+disp (z)
+@end example
+
+@section Quantization illustration
+
+@example
+pkg load fxp
+x = fxp(pi, 1, 16, 12);
+fprintf("float(pi) = %.12f\n", pi);
+disp(x);
+@end example
+
+@bye

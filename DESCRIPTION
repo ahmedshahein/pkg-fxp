@@ -1,0 +1,12 @@
+# GNU Octave package metadata (see Octave manual: The DESCRIPTION File)
+Name: fxp
+Version: 5.1.0
+Date: 2026-01-26
+Author: Ahmed Shahein
+Maintainer: ahmed.shahein@vlsi-design.org
+Title: Fixed-point (fxp) data type for GNU Octave
+Description: A fixed-point (fxp) class implementing quantization, overflow handling,
+ and common arithmetic operators to enable fixed-point DSP modeling in GNU Octave.
+License: GPL-3.0-or-later
+Depends: octave (>= 5.2.0)
+Categories: Numerical; Signal Processing
