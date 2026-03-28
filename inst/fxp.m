@@ -559,6 +559,8 @@ classdef fxp
       % il shall be larger than wl
       if fl < 0
         lsb_pad = zeros(1,abs(fl));
+        int_bin = [fxp_bin(1:il+fl+s) lsb_pad];
+        frc_bin = [0];
       % No integer part
       % fl shall be larger than wl
       elseif il < 0
