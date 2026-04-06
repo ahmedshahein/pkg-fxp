@@ -9,6 +9,107 @@
 %% Author: Ahmed Shahein
 %% Email: ahmed.shahein@vlsi-design.org
 %% -------------------------------------------------------------------
+% FXP  Fixed-point arithmetic data type for GNU Octave.
+%
+%   FXP models hardware fixed-point quantization as found in FPGA, ASIC,
+%   and DSP designs.  It supports configurable word length, fraction
+%   length, signedness, overflow handling, and rounding.
+%
+% CONSTRUCTOR SYNTAX
+%   obj = fxp(data)
+%       Quantize DATA using default settings:
+%         S=1 (signed), WL=16 (bits), FL=8 (fraction bits),
+%         ovf_action='wrap', rnd_method='round'.
+%
+%   obj = fxp(data, S, WL, FL)
+%       Quantize DATA with explicit format parameters.
+%         data - Scalar or array of double values to quantize.
+%         S    - Sign bit: 1 = signed two's complement, 0 = unsigned.
+%         WL   - Word length in bits (total, including sign bit).
+%         FL   - Fraction length in bits (bits right of the binary
+%                point).  Integer length IL = WL - FL - S.
+%       Default ovf_action='wrap' and rnd_method='round' are used.
+%
+%   obj = fxp(data, S, WL, FL, 'ovf_action', OVF, 'rnd_method', RND)
+%   obj = fxp('data', data, 'S', S, 'WL', WL, 'FL', FL, ...)
+%       Any combination of keyword/value pairs may follow the positional
+%       arguments (or replace them entirely using 'data','S','WL','FL').
+%         OVF  - Overflow action (string):
+%                  'wrap' - modular wrap-around (default)
+%                  'sat'  - saturate to [min, max]
+%         RND  - Rounding method (string):
+%                  'round' - round half away from zero (default)
+%                  'floor' - round toward negative infinity
+%                  'ceil'  - round toward positive infinity
+%                  'fix' - round toward zero (truncation)
+%
+% PROPERTIES
+%   S          - Sign bit (0 = unsigned, 1 = signed two's complement)
+%   WL         - Word length in bits
+%   IL         - Integer length (WL - FL - S)
+%   FL         - Fraction length in bits
+%   ovf_action - Overflow action: 'wrap' or 'sat'
+%   rnd_method - Rounding method: 'round', 'floor', 'ceil', or 'fix'
+%   max        - Maximum representable value  ( 2^IL - 2^-FL )
+%   min        - Minimum representable value  (-2^IL * S    )
+%   res        - Resolution, i.e. LSB weight  ( 2^-FL       )
+%   DR_dB      - Dynamic range in dB          ( 6.02*(WL-FL))
+%   vfxp       - Quantized fixed-point value (real-valued double)
+%   dec        - Two's-complement integer representation
+%   int        - Integer part of vfxp
+%   frac       - Fractional part of vfxp
+%   float      - Original floating-point input
+%   bin        - Binary row vector (MSB first)
+%   bin_str    - Binary string with decimal-point marker (e.g. '0111.1100')
+%   err        - Absolute quantization error |float - vfxp|
+%   ovf        - Overflow flag (1 if overflow occurred, 0 otherwise)
+%
+% ARITHMETIC OPERATORS  (both operands must be fxp with same ovf/rnd settings)
+%   a + b      - Addition        (WL+1 bits, FL = max(FL_a, FL_b))
+%   a - b      - Subtraction     (WL+1 bits, FL = max(FL_a, FL_b))
+%   a * b      - Matrix multiply (WL = WL_a+WL_b, FL = FL_a+FL_b)
+%   a .* b     - Element-wise multiply (same format as *)
+%   a / b      - Matrix right divide
+%   a ./ b     - Element-wise right divide
+%   mod(a,b)   - Modulo
+%
+% COMPARISON OPERATORS  (return logical scalar or array)
+%   ==  ~=  <  <=  >  >=
+%
+% CONVERSION METHODS
+%   double(obj)  - Return vfxp as a double
+%   int32(obj)   - Return two's-complement integer as int32
+%   uint32(obj)  - Return magnitude of dec as uint32
+%   bin2dec(obj) - Reconstruct real value from binary representation
+%   struct(obj)  - Convert to struct containing all properties
+%
+% EXAMPLES
+%   % Basic quantization (signed 16-bit Q8)
+%   x = fxp(3.14, 1, 16, 8)
+%
+%   % Unsigned 8-bit with 4 integer bits and 4 fraction bits
+%   x = fxp(7.3, 0, 8, 4)
+%
+%   % Saturation overflow with floor rounding
+%   x = fxp(200.0, 0, 8, 4, 'ovf_action', 'sat', 'rnd_method', 'floor')
+%
+%   % Array quantization and overflow flags
+%   x = fxp([0.1, 0.5, -0.5, 9.9], 1, 8, 4, 'ovf_action', 'sat')
+%
+%   % Arithmetic operators
+%   a = fxp(1.5,  1, 8, 4);
+%   b = fxp(0.25, 1, 8, 4);
+%   c = a + b;    % c.vfxp == 1.75
+%   d = a * b;    % d.vfxp == 0.375
+%   e = a / b;    % e.vfxp == 6.0
+%
+%   % Named-parameter form
+%   x = fxp('data', pi, 'S', 1, 'WL', 16, 'FL', 12, ...
+%            'ovf_action', 'sat', 'rnd_method', 'round')
+%
+% SEE ALSO
+%   double, int32, uint32, round, floor, ceil, fix
+
 classdef fxp
 %% -------------------------------------------------------------------
   % Define fxp object configuration, numeric values, and metadata
@@ -19,7 +120,7 @@ classdef fxp
     IL         = 0;       % Integer-length
     FL         = 0;       % Fraction-length
     ovf_action = 'wrap';  % Overflow action: 'sat' or 'wrap'
-    rnd_method = 'round'; % Rounding method: 'round', 'fix', 'floor', 'ceil'
+    rnd_method = 'round'; % Rounding method: 'round', 'floor', 'ceil', 'fix'
     % Derived Constants (scalar)
     max        = 0;       % Upper bound of fxp range
     min        = 0;       % Lower bound of fxp range
@@ -189,7 +290,7 @@ classdef fxp
 
       % Generate binary representation (2's complement)
       %obj.bin     = de2bi(obj.S*2^obj.WL - (-sign(obj.dec) .* abs(obj.dec)), obj.WL, 'left-msb');
-      obj.bin     = fxp.dec2bit(obj.S*2^obj.WL - (-sign(obj.dec) .* abs(obj.dec)), obj.WL, 'left-msb');      
+      obj.bin     = fxp.dec2bit(obj.S*2^obj.WL - (-sign(obj.dec) .* abs(obj.dec)), obj.WL, 'left-msb');
       obj.bin_str = fxp.print_fxp_str(obj.bin, obj.S, obj.WL, obj.FL);
 
       % Calculate quantization error
@@ -538,7 +639,7 @@ classdef fxp
           rounded = floor(val);
         case 'ceil'
           rounded = ceil(val);
-        case 'trunc'
+        case 'fix'
           rounded = fix(val);
         otherwise
           rounded = round(val);
@@ -608,4 +709,242 @@ classdef fxp
   end %% methods helper
 
 end %%classdef
+
+%% =====================================================================
+%% Unit Tests  (run with: test fxp)
+%% =====================================================================
+%
+% Common format used in many tests: S=1, WL=8, FL=4
+%   IL  = WL - FL - S = 3
+%   max = 2^3  - 2^-4  =  7.9375
+%   min = -2^3         = -8.0
+%   res = 2^-4         =  0.0625
+%
+
+%!test  % --- Constructor: default (nargin==1) ---
+%! x = fxp(1.0);
+%! assert(x.S,  1)
+%! assert(x.WL, 16)
+%! assert(x.FL, 8)
+%! assert(x.IL, 7)
+%! assert(x.vfxp, 1.0)
+%! assert(x.ovf,  false)
+
+%!test  % --- Constructor: positional (nargin==4) ---
+%! x = fxp(3.14, 1, 16, 8);
+%! % 3.14 * 256 = 803.84 -> round -> 804 -> 804/256 = 3.140625
+%! assert(x.vfxp, 804/256, 1e-12)
+%! assert(x.err,  abs(3.14 - 804/256), 1e-12)
+
+%!test  % --- Constructor: named-parameter form ---
+%! x = fxp(1.0, 'S', 1, 'WL', 8, 'FL', 4, 'ovf_action', 'sat', 'rnd_method', 'floor');
+%! assert(x.ovf_action, 'sat')
+%! assert(x.rnd_method, 'floor')
+%! assert(x.vfxp, 1.0)
+
+%!test  % --- Constructor: mixed positional + named ---
+%! x = fxp(1.0, 1, 8, 4, 'ovf_action', 'sat', 'rnd_method', 'ceil');
+%! assert(x.ovf_action, 'sat')
+%! assert(x.rnd_method, 'ceil')
+%! assert(x.vfxp, 1.0)
+
+%!test  % --- Derived configuration parameters ---
+%! x = fxp(0.0, 1, 8, 4);
+%! assert(x.max,   7.9375,   1e-12)
+%! assert(x.min,  -8.0,      1e-12)
+%! assert(x.res,   0.0625,   1e-12)
+%! assert(x.DR_dB, 6.02 * (8-4), 1e-10)
+
+%!test  % --- Exact representable values: no quantization error ---
+%! x = fxp(0.0,    1, 8, 4);  assert(x.vfxp,  0.0,     1e-12); assert(x.err, 0)
+%! x = fxp(7.9375, 1, 8, 4);  assert(x.vfxp,  7.9375,  1e-12); assert(x.err, 0); assert(x.ovf, false)
+%! x = fxp(-8.0,   1, 8, 4);  assert(x.vfxp, -8.0,     1e-12); assert(x.err, 0); assert(x.ovf, false)
+%! x = fxp(0.0625, 1, 8, 4);  assert(x.vfxp,  0.0625,  1e-12); assert(x.err, 0)
+
+%!test  % --- Rounding: 'round' (half away from zero), positive ---
+%! % 0.1 * 16 = 1.6  -> round -> 2  -> 0.125
+%! x = fxp(0.1, 1, 8, 4, 'rnd_method', 'round');
+%! assert(x.vfxp,  0.125, 1e-12)
+%! % 0.09375 * 16 = 1.5 (halfway) -> round -> 2 -> 0.125
+%! x = fxp(0.09375, 1, 8, 4, 'rnd_method', 'round');
+%! assert(x.vfxp,  0.125, 1e-12)
+
+%!test  % --- Rounding: 'round' (half away from zero), negative ---
+%! % -0.1 * 16 = -1.6 -> round -> -2 -> -0.125
+%! x = fxp(-0.1, 1, 8, 4, 'rnd_method', 'round');
+%! assert(x.vfxp, -0.125, 1e-12)
+%! % -0.09375 * 16 = -1.5 (halfway neg) -> round -> -2 -> -0.125
+%! x = fxp(-0.09375, 1, 8, 4, 'rnd_method', 'round');
+%! assert(x.vfxp, -0.125, 1e-12)
+
+%!test  % --- Rounding: 'floor' (toward -inf) ---
+%! % 0.1 * 16 = 1.6  -> floor -> 1 -> 0.0625
+%! x = fxp(0.1, 1, 8, 4, 'rnd_method', 'floor');
+%! assert(x.vfxp,  0.0625, 1e-12)
+%! % -0.1 * 16 = -1.6 -> floor -> -2 -> -0.125
+%! x = fxp(-0.1, 1, 8, 4, 'rnd_method', 'floor');
+%! assert(x.vfxp, -0.125, 1e-12)
+%! % -0.09375 * 16 = -1.5 -> floor -> -2 -> -0.125
+%! x = fxp(-0.09375, 1, 8, 4, 'rnd_method', 'floor');
+%! assert(x.vfxp, -0.125, 1e-12)
+%! % 0.09375 * 16 = 1.5 -> floor -> 1 -> 0.0625
+%! x = fxp(0.09375, 1, 8, 4, 'rnd_method', 'floor');
+%! assert(x.vfxp,  0.0625, 1e-12)
+
+%!test  % --- Rounding: 'ceil' (toward +inf) ---
+%! % 0.1 * 16 = 1.6  -> ceil -> 2  -> 0.125
+%! x = fxp(0.1, 1, 8, 4, 'rnd_method', 'ceil');
+%! assert(x.vfxp,  0.125, 1e-12)
+%! % -0.1 * 16 = -1.6 -> ceil -> -1 -> -0.0625
+%! x = fxp(-0.1, 1, 8, 4, 'rnd_method', 'ceil');
+%! assert(x.vfxp, -0.0625, 1e-12)
+%! % 0.09375 * 16 = 1.5 -> ceil -> 2 -> 0.125
+%! x = fxp(0.09375, 1, 8, 4, 'rnd_method', 'ceil');
+%! assert(x.vfxp,  0.125, 1e-12)
+%! % -0.09375 * 16 = -1.5 -> ceil -> -1 -> -0.0625
+%! x = fxp(-0.09375, 1, 8, 4, 'rnd_method', 'ceil');
+%! assert(x.vfxp, -0.0625, 1e-12)
+
+%!test  % --- Rounding: 'fix' (toward zero) ---
+%! % 0.1 * 16 = 1.6  -> fix -> 1 -> 0.0625
+%! x = fxp(0.1, 1, 8, 4, 'rnd_method', 'fix');
+%! assert(x.vfxp,  0.0625, 1e-12)
+%! % -0.1 * 16 = -1.6 -> fix -> -1 -> -0.0625
+%! x = fxp(-0.1, 1, 8, 4, 'rnd_method', 'fix');
+%! assert(x.vfxp, -0.0625, 1e-12)
+%! % 'fix' is an alias for 'fix'
+%! x = fxp(0.1, 1, 8, 4, 'rnd_method', 'fix');
+%! assert(x.vfxp,  0.0625, 1e-12)
+%! x = fxp(-0.1, 1, 8, 4, 'rnd_method', 'fix');
+%! assert(x.vfxp, -0.0625, 1e-12)
+
+%!test  % --- Overflow: saturation, signed ---
+%! % Value above max -> clamp to max
+%! x = fxp(10.0, 1, 8, 4, 'ovf_action', 'sat');
+%! assert(x.vfxp, 7.9375, 1e-12)
+%! assert(x.ovf,  true)
+%! % Value below min -> clamp to min
+%! x = fxp(-9.0, 1, 8, 4, 'ovf_action', 'sat');
+%! assert(x.vfxp, -8.0, 1e-12)
+%! assert(x.ovf,  true)
+%! % Value in range -> no saturation
+%! x = fxp(3.0, 1, 8, 4, 'ovf_action', 'sat');
+%! assert(x.vfxp, 3.0, 1e-12)
+%! assert(x.ovf,  false)
+
+%!test  % --- Overflow: saturation, unsigned ---
+%! % Format S=0, WL=8, FL=4: max=15.9375, min=0
+%! x = fxp(20.0, 0, 8, 4, 'ovf_action', 'sat');
+%! assert(x.vfxp, 15.9375, 1e-12)
+%! assert(x.ovf,  true)
+
+%!test  % --- Overflow: wrap-around, signed ---
+%! % 8.0 is just above max=7.9375:
+%! %   raw=128, mod(128,256)=128 >= sign_bit=128 -> -128/16 = -8.0
+%! x = fxp(8.0, 1, 8, 4, 'ovf_action', 'wrap');
+%! assert(x.vfxp, -8.0, 1e-12)
+%! assert(x.ovf,  true)
+%! % 8.0625: raw=129, mod=129-256=-127 -> -127/16 = -7.9375
+%! x = fxp(8.0625, 1, 8, 4, 'ovf_action', 'wrap');
+%! assert(x.vfxp, -7.9375, 1e-12)
+%! % 16.0: raw=256, mod(256,256)=0 -> 0/16 = 0.0
+%! x = fxp(16.0, 1, 8, 4, 'ovf_action', 'wrap');
+%! assert(x.vfxp, 0.0, 1e-12)
+
+%!test  % --- Overflow: wrap-around, unsigned ---
+%! % Format S=0, WL=8, FL=4: max=15.9375, min=0
+%! % -1.0*16=-16, mod(-16,256)=240, 240/16=15.0
+%! x = fxp(-1.0, 0, 8, 4, 'ovf_action', 'wrap');
+%! assert(x.vfxp, 15.0, 1e-12)
+%! assert(x.ovf,  true)
+
+%!test  % --- Arithmetic: addition ---
+%! a = fxp(1.5,  1, 8, 4);
+%! b = fxp(0.25, 1, 8, 4);
+%! c = a + b;
+%! assert(c.vfxp, 1.75,  1e-12)
+%! assert(c.WL,   9)
+%! assert(c.FL,   4)
+
+%!test  % --- Arithmetic: subtraction ---
+%! a = fxp(1.5,  1, 8, 4);
+%! b = fxp(0.25, 1, 8, 4);
+%! c = a - b;
+%! assert(c.vfxp, 1.25, 1e-12)
+%! assert(c.WL,   9)
+%! assert(c.FL,   4)
+
+%!test  % --- Arithmetic: matrix multiply ---
+%! a = fxp(1.5,  1, 8, 4);
+%! b = fxp(0.25, 1, 8, 4);
+%! c = a * b;
+%! assert(c.vfxp, 0.375, 1e-12)
+%! assert(c.WL,   16)
+%! assert(c.FL,   8)
+
+%!test  % --- Arithmetic: element-wise multiply ---
+%! a = fxp([1.5, -1.0], 1, 8, 4);
+%! b = fxp([0.5,  2.0], 1, 8, 4);
+%! c = a .* b;
+%! assert(c.vfxp, [0.75, -2.0], 1e-12)
+
+%!test  % --- Arithmetic: matrix divide ---
+%! a = fxp(1.5,  1, 8, 4);
+%! b = fxp(0.25, 1, 8, 4);
+%! c = a / b;
+%! assert(c.vfxp, 6.0, 1e-12)
+
+%!test  % --- Arithmetic: element-wise divide ---
+%! a = fxp([3.0, -2.0], 1, 8, 4);
+%! b = fxp([1.5,  0.5], 1, 8, 4);
+%! c = a ./ b;
+%! assert(c.vfxp, [2.0, -4.0], 1e-12)
+
+%!test  % --- Comparison: == and ~= ---
+%! a = fxp(1.5,  1, 8, 4);
+%! b = fxp(1.5,  1, 8, 4);
+%! c = fxp(0.5,  1, 8, 4);
+%! assert( (a == b), true )
+%! assert( (a ~= c), true )
+%! assert( (a == c), false)
+
+%!test  % --- Comparison: <, <=, >, >= ---
+%! a = fxp(1.5,  1, 8, 4);
+%! b = fxp(0.5,  1, 8, 4);
+%! assert( (b < a),  true )
+%! assert( (b <= a), true )
+%! assert( (a > b),  true )
+%! assert( (a >= a), true )
+%! assert( (a < b),  false)
+
+%!test  % --- Conversion: double, int32, uint32 ---
+%! x = fxp(3.0, 1, 8, 4);
+%! assert(double(x),  3.0)
+%! assert(int32(x),   int32(48))    % dec = 3.0 * 16 = 48
+%! assert(uint32(x),  uint32(48))
+
+%!test  % --- Conversion: struct ---
+%! x = fxp(2.5, 1, 8, 4);
+%! s = struct(x);
+%! assert(s.vfxp, x.vfxp)
+%! assert(s.WL,   8)
+%! assert(s.FL,   4)
+
+%!test  % --- Array input: basic ---
+%! x = fxp([1.0, 2.0, -1.0], 1, 8, 4);
+%! assert(x.vfxp, [1.0, 2.0, -1.0], 1e-12)
+%! assert(x.ovf,  [false, false, false])
+
+%!test  % --- Array input: mixed overflow (sat) ---
+%! x = fxp([10.0, 3.0, -10.0], 1, 8, 4, 'ovf_action', 'sat');
+%! assert(x.vfxp, [7.9375, 3.0, -8.0], 1e-12)
+%! assert(x.ovf,  [true, false, true])
+
+%!test  % --- Binary representation ---
+%! x = fxp(0.0, 1, 8, 4);
+%! assert(all(x.bin == 0))                      % all zeros for 0.0
+%! x = fxp(-8.0, 1, 8, 4);
+%! assert(x.bin(1), 1)                          % MSB set for most-negative signed value
+%! assert(all(x.bin(2:end) == 0))               % remaining bits zero
+
 % EOF
