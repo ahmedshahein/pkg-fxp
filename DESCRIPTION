@@ -1,6 +1,6 @@
 Name: fxp
-Version: 3.0.0
-Date: 2026-04-06
+Version: 3.0.1
+Date: 2026-04-12
 Title: Fixed-Point Arithmetic for GNU Octave
 Author: Ahmed Shahein
 Maintainer: Ahmed Shahein <ahmed.shahein@vlsi-design.org>
