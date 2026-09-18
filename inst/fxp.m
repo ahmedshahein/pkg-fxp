@@ -542,6 +542,63 @@ classdef fxp
   end %% Logical
 
   %% =====================================================================
+  %% Indexing
+  %% =====================================================================
+  % fxp is always a single (scalar) object whose properties hold a
+  % vector of quantized values. These two methods make y(i) and
+  % y(i) = val work on the underlying vfxp/dec/bin/... data instead.
+  methods
+    function varargout = subsref(obj, S)
+      if strcmp(S(1).type, '()')
+        i           = S(1).subs{1};
+        out         = obj;
+        out.float   = obj.float(i);
+        out.vfxp    = obj.vfxp(i);
+        out.dec     = obj.dec(i);
+        out.int     = obj.int(i);
+        out.frac    = obj.frac(i);
+        out.err     = obj.err(i);
+        out.ovf     = obj.ovf(i);
+        out.bin     = obj.bin(i,:);
+        out.bin_str = fxp.print_fxp_str(out.bin, out.S, out.WL, out.FL);
+        if numel(S) > 1
+          varargout{1} = builtin('subsref', out, S(2:end));
+        else
+          varargout{1} = out;
+        end
+      else
+        varargout{1} = builtin('subsref', obj, S);
+      end
+    end %%subsref
+
+    function last = end(obj, k, n)
+      last = numel(obj.vfxp);
+    end %%end
+
+    function obj = subsasgn(obj, S, val)
+      if strcmp(S(1).type, '()')
+        i = S(1).subs{1};
+        if isa(val, 'fxp')
+          val = val.vfxp;
+        end
+        % Quantize just the new value(s) using this object's own
+        % format, then drop the result into the existing arrays at i.
+        new = fxp_quantize(obj, val);
+        obj.float(i)  = new.float;
+        obj.vfxp(i)   = new.vfxp;
+        obj.dec(i)    = new.dec;
+        obj.int(i)    = new.int;
+        obj.frac(i)   = new.frac;
+        obj.err(i)    = new.err;
+        obj.ovf(i)    = new.ovf;
+        obj.bin(i,:)  = new.bin;
+      else
+        obj = builtin('subsasgn', obj, S, val);
+      end
+    end %%subsasgn
+  end %% methods indexing
+
+  %% =====================================================================
   %% Conversion
   %% =====================================================================
   methods
@@ -607,11 +664,13 @@ classdef fxp
       fprintf(' %-18s: [%g, %.*f]\n', 'Range', obj.min, obj.FL, obj.max);
       fprintf(' %-18s: %g\n', 'Resolution', obj.res);
       fprintf(' %-18s: %.2f dB\n', 'Dynamic Range:', obj.DR_dB);
-      fprintf(' %-18s: %.*f\n', 'Value', obj.FL, obj.vfxp);
+      fprintf(' %-18s: ', 'Value');
+      disp(obj.vfxp);
       fprintf(' %-15s: %g\n', 'Quantization Error');
       disp(obj.err);
       fprintf(' %-18s: %s\n', 'Binary', obj.bin_str);
-      fprintf(' %-18s: %d\n', 'Overflow', obj.ovf);
+      fprintf(' %-18s: ', 'Overflow');
+      disp(obj.ovf);
       fprintf('\n');
     end
 
