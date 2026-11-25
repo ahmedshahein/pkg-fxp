@@ -592,6 +592,7 @@ classdef fxp
         obj.err(i)    = new.err;
         obj.ovf(i)    = new.ovf;
         obj.bin(i,:)  = new.bin;
+        obj.bin_str   = fxp.print_fxp_str(obj.bin, obj.S, obj.WL, obj.FL);
       else
         obj = builtin('subsasgn', obj, S, val);
       end
@@ -668,15 +669,21 @@ classdef fxp
       disp(obj.vfxp);
       fprintf(' %-15s: %g\n', 'Quantization Error');
       disp(obj.err);
-      fprintf(' %-18s: %s\n', 'Binary', obj.bin_str);
+      if rows(obj.bin_str) > 1
+        fprintf(' %-18s:\n', 'Binary');
+        disp(obj.bin_str);
+      else
+        fprintf(' %-18s: %s\n', 'Binary', obj.bin_str);
+      end
       fprintf(' %-18s: ', 'Overflow');
       disp(obj.ovf);
       fprintf('\n');
     end
 
     function s = char(obj)
-      % Convert to string representation
-      s = sprintf('fxp(%g, %d, %d, %d)', obj.vfxp, obj.S, obj.WL, obj.FL);
+      % Convert to string representation, one row per value
+      s = char(arrayfun(@(v) sprintf('fxp(%g, %d, %d, %d)', v, obj.S, obj.WL, obj.FL), ...
+                        obj.vfxp(:), 'UniformOutput', false));
     end
   end %%methods display
 
@@ -709,6 +716,16 @@ classdef fxp
     % It supports +ve and -ve fraction length, automatic padding.
     % It supports 2's complement.
     function bin_str = print_fxp_str(fxp_bin, s, wl, fl)
+      % One string per row of fxp_bin, i.e. per value: a char matrix for
+      % an array, a char row for a scalar.
+      if rows(fxp_bin) > 1
+        strs = cell(rows(fxp_bin), 1);
+        for k = 1 : rows(fxp_bin)
+          strs{k} = fxp.print_fxp_str(fxp_bin(k,:), s, wl, fl);
+        end
+        bin_str = char(strs);
+        return
+      end
       il = wl - fl - s;
       if ( (il+fl+s) ~= wl )
         return
